@@ -2,6 +2,8 @@
 - name: Check if system reboot is required
   hosts: "{{ my_hosts | d([]) }}"
   become: true
+  vars:
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
 
   tasks:
     - name: Check if system reboot is required
