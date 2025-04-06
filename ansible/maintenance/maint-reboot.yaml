@@ -2,6 +2,8 @@
 - name: Reboot machine
   hosts: "{{ my_hosts | d([]) }}"
   become: true
+  vars:
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
 
   tasks:
     - name: Reboot machine
