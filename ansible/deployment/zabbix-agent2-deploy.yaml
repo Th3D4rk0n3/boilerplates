@@ -5,10 +5,10 @@
   gather_facts: yes
 
   vars:
-    zabbix_repo_version: "7.4"  # or 6.4 / 8.0 if you prefer
+    zabbix_repo_version: "7.4"  # change to 6.4, 8.0, etc. if needed
 
   pre_tasks:
-    - name: Ensure required tools for apt are installed (Debian/Ubuntu)
+    - name: Ensure required apt tools (Debian/Ubuntu)
       ansible.builtin.apt:
         name:
           - gnupg
@@ -28,7 +28,9 @@
       ansible.builtin.set_fact:
         pkg_mgr: "{{ ansible_pkg_mgr }}"
 
-    # ---------------------- RHEL / Rocky / Alma ----------------------
+    # ---------------------------------------------------
+    # RHEL / Rocky / AlmaLinux
+    # ---------------------------------------------------
     - name: Add Zabbix repository (RHEL-based)
       ansible.builtin.yum_repository:
         name: zabbix
@@ -39,7 +41,9 @@
         enabled: yes
       when: pkg_mgr in ["yum", "dnf"]
 
-    # ---------------------- Debian / Ubuntu --------------------------
+    # ---------------------------------------------------
+    # Debian / Ubuntu
+    # ---------------------------------------------------
     - name: Normalize Ubuntu codename for Zabbix repo
       ansible.builtin.set_fact:
         zabbix_repo_codename: >-
@@ -50,25 +54,27 @@
           {% endif %}
       when: pkg_mgr == "apt"
 
-    - name: Add Zabbix GPG key for Debian/Ubuntu
-      ansible.builtin.get_url:
-        url: "https://repo.zabbix.com/zabbix-official-repo.key"
-        dest: /usr/share/keyrings/zabbix-official.gpg
-        mode: '0644'
+    - name: Download and convert Zabbix GPG key (apt)
+      ansible.builtin.shell: |
+        curl -fsSL https://repo.zabbix.com/zabbix-official-repo.key | gpg --dearmor -o /usr/share/keyrings/zabbix-official.gpg
+      args:
+        creates: /usr/share/keyrings/zabbix-official.gpg
       when: pkg_mgr == "apt"
 
-    - name: Add Zabbix repository (Debian-based)
+    - name: Add Zabbix repository (Debian/Ubuntu)
       ansible.builtin.apt_repository:
         repo: "deb [signed-by=/usr/share/keyrings/zabbix-official.gpg] https://repo.zabbix.com/zabbix/{{ zabbix_repo_version }}/release/ubuntu {{ zabbix_repo_codename }} main"
         state: present
       when: pkg_mgr == "apt"
 
-    - name: Update APT cache
+    - name: Update apt cache
       ansible.builtin.apt:
         update_cache: yes
       when: pkg_mgr == "apt"
 
-    # ---------------------- Install Agent ----------------------------
+    # ---------------------------------------------------
+    # Install Agent2
+    # ---------------------------------------------------
     - name: Check if zabbix-agent2 is installed
       ansible.builtin.shell: "rpm -q zabbix-agent2 || dpkg -l zabbix-agent2"
       register: zabbix_check
@@ -80,7 +86,9 @@
         state: present
       when: zabbix_check.rc != 0
 
-    # ---------------------- Configure Agent --------------------------
+    # ---------------------------------------------------
+    # Configure Agent
+    # ---------------------------------------------------
     - name: Update Server in zabbix_agent2.conf
       ansible.builtin.lineinfile:
         path: /etc/zabbix/zabbix_agent2.conf
@@ -95,7 +103,9 @@
         line: "ServerActive={{ zabbix_server_ip }}"
         backup: yes
 
-    # ---------------------- Enable Service ---------------------------
+    # ---------------------------------------------------
+    # Enable & Start Service
+    # ---------------------------------------------------
     - name: Enable and start zabbix-agent2 service
       ansible.builtin.service:
         name: zabbix-agent2
