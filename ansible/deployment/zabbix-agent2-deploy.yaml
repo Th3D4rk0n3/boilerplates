@@ -40,44 +40,46 @@
         enabled: yes
       when: pkg_mgr in ["yum", "dnf"]
 
-    # ---------------------- Debian / Ubuntu ----------------------
-    - name: Normalize repo OS and codename
-      ansible.builtin.set_fact:
-        zabbix_repo_os: "{{ 'debian' if ansible_distribution == 'Debian' else 'ubuntu' }}"
-        zabbix_repo_codename: >-
-          {% if ansible_distribution == 'Ubuntu' %}
-            {% set v = ansible_distribution_version.split('.') %}
-            {% if v[0]|int == 20 %}
-              focal
-            {% elif v[0]|int == 22 %}
-              jammy
-            {% elif v[0]|int == 24 %}
-              noble
-            {% else %}
-              {{ ansible_distribution_release | lower }}
-            {% endif %}
-          {% else %}
-            {{ ansible_distribution_release | lower }}
-          {% endif %}
-      when: pkg_mgr == "apt"
+    # ---------------------- Ubuntu via .deb ----------------------
+    - name: Download Zabbix release package for Ubuntu
+      ansible.builtin.get_url:
+        url: "https://repo.zabbix.com/zabbix/{{ zabbix_repo_version }}/release/ubuntu/pool/main/z/zabbix-release/zabbix-release_latest_{{ zabbix_repo_version }}+ubuntu{{ ansible_distribution_version.replace('.', '') }}_all.deb"
+        dest: "/tmp/zabbix-release_latest_{{ zabbix_repo_version }}.deb"
+      when: ansible_distribution == "Ubuntu"
 
-    - name: Download and convert Zabbix GPG key (apt)
+    - name: Install Zabbix release package (Ubuntu)
+      ansible.builtin.apt:
+        deb: "/tmp/zabbix-release_latest_{{ zabbix_repo_version }}.deb"
+      when: ansible_distribution == "Ubuntu"
+
+    - name: Update apt cache (Ubuntu)
+      ansible.builtin.apt:
+        update_cache: yes
+      when: ansible_distribution == "Ubuntu"
+
+    # ---------------------- Debian standard repo ----------------------
+    - name: Normalize Debian codename for repo
+      ansible.builtin.set_fact:
+        zabbix_repo_codename: "{{ ansible_distribution_release | lower }}"
+      when: ansible_distribution == "Debian"
+
+    - name: Download and convert Zabbix GPG key (Debian)
       ansible.builtin.shell: |
         curl -fsSL https://repo.zabbix.com/zabbix-official-repo.key | gpg --dearmor -o /usr/share/keyrings/zabbix-official.gpg
       args:
         creates: /usr/share/keyrings/zabbix-official.gpg
-      when: pkg_mgr == "apt"
+      when: ansible_distribution == "Debian"
 
-    - name: Add Zabbix repository (Debian/Ubuntu)
+    - name: Add Zabbix repository (Debian)
       ansible.builtin.apt_repository:
-        repo: "deb [arch=amd64 signed-by=/usr/share/keyrings/zabbix-official.gpg] https://repo.zabbix.com/zabbix/{{ zabbix_repo_version }}/release/{{ zabbix_repo_os }} {{ zabbix_repo_codename }} main"
+        repo: "deb [arch=amd64 signed-by=/usr/share/keyrings/zabbix-official.gpg] https://repo.zabbix.com/zabbix/{{ zabbix_repo_version }}/release/debian {{ zabbix_repo_codename }} main"
         state: present
-      when: pkg_mgr == "apt"
+      when: ansible_distribution == "Debian"
 
-    - name: Update apt cache
+    - name: Update apt cache (Debian)
       ansible.builtin.apt:
         update_cache: yes
-      when: pkg_mgr == "apt"
+      when: ansible_distribution == "Debian"
 
     # ---------------------- Install Agent ----------------------
     - name: Ensure zabbix-agent2 is installed
