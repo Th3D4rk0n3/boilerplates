@@ -5,15 +5,16 @@
   gather_facts: yes
 
   vars:
-    zabbix_repo_version: "7.4"  # change to 6.4, 8.0, etc. if needed
+    zabbix_repo_version: "7.4"
 
   pre_tasks:
-    - name: Ensure required apt tools (Debian/Ubuntu)
+    - name: Ensure apt dependencies (Debian/Ubuntu)
       ansible.builtin.apt:
         name:
           - gnupg
           - apt-transport-https
           - ca-certificates
+          - curl
         state: present
         update_cache: yes
       when: ansible_pkg_mgr == "apt"
@@ -28,9 +29,7 @@
       ansible.builtin.set_fact:
         pkg_mgr: "{{ ansible_pkg_mgr }}"
 
-    # ---------------------------------------------------
-    # RHEL / Rocky / AlmaLinux
-    # ---------------------------------------------------
+    # ---------------------- RHEL / Rocky / AlmaLinux ----------------------
     - name: Add Zabbix repository (RHEL-based)
       ansible.builtin.yum_repository:
         name: zabbix
@@ -41,16 +40,15 @@
         enabled: yes
       when: pkg_mgr in ["yum", "dnf"]
 
-    # ---------------------------------------------------
-    # Debian / Ubuntu
-    # ---------------------------------------------------
-    - name: Normalize Ubuntu codename for Zabbix repo
+    # ---------------------- Debian / Ubuntu ----------------------
+    - name: Normalize repo OS and codename
       ansible.builtin.set_fact:
+        zabbix_repo_os: "{{ 'debian' if ansible_distribution == 'Debian' else 'ubuntu' }}"
         zabbix_repo_codename: >-
-          {% if ansible_distribution_release in ['noble', 'plucky'] %}
-          jammy
+          {% if ansible_distribution == 'Ubuntu' and ansible_distribution_release in ['noble', 'plucky'] %}
+            jammy
           {% else %}
-          {{ ansible_distribution_release }}
+            {{ ansible_distribution_release | lower }}
           {% endif %}
       when: pkg_mgr == "apt"
 
@@ -63,7 +61,7 @@
 
     - name: Add Zabbix repository (Debian/Ubuntu)
       ansible.builtin.apt_repository:
-        repo: "deb [signed-by=/usr/share/keyrings/zabbix-official.gpg] https://repo.zabbix.com/zabbix/{{ zabbix_repo_version }}/release/ubuntu {{ zabbix_repo_codename }} main"
+        repo: "deb [arch=amd64 signed-by=/usr/share/keyrings/zabbix-official.gpg] https://repo.zabbix.com/zabbix/{{ zabbix_repo_version }}/release/{{ zabbix_repo_os }} {{ zabbix_repo_codename }} main"
         state: present
       when: pkg_mgr == "apt"
 
@@ -72,23 +70,13 @@
         update_cache: yes
       when: pkg_mgr == "apt"
 
-    # ---------------------------------------------------
-    # Install Agent2
-    # ---------------------------------------------------
-    - name: Check if zabbix-agent2 is installed
-      ansible.builtin.shell: "rpm -q zabbix-agent2 || dpkg -l zabbix-agent2"
-      register: zabbix_check
-      ignore_errors: yes
-
-    - name: Install zabbix-agent2
+    # ---------------------- Install Agent ----------------------
+    - name: Ensure zabbix-agent2 is installed
       ansible.builtin.package:
         name: zabbix-agent2
         state: present
-      when: zabbix_check.rc != 0
 
-    # ---------------------------------------------------
-    # Configure Agent
-    # ---------------------------------------------------
+    # ---------------------- Configure Agent ----------------------
     - name: Update Server in zabbix_agent2.conf
       ansible.builtin.lineinfile:
         path: /etc/zabbix/zabbix_agent2.conf
@@ -103,9 +91,7 @@
         line: "ServerActive={{ zabbix_server_ip }}"
         backup: yes
 
-    # ---------------------------------------------------
-    # Enable & Start Service
-    # ---------------------------------------------------
+    # ---------------------- Enable Service ----------------------
     - name: Enable and start zabbix-agent2 service
       ansible.builtin.service:
         name: zabbix-agent2
