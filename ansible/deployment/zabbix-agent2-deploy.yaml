@@ -33,7 +33,7 @@
       ansible.builtin.yum_repository:
         name: zabbix
         description: "Zabbix Official Repository"
-        baseurl: "https://repo.zabbix.com/zabbix/{{ zabbix_repo_version }}/rhel/{{ ansible_distribution_major_version }}/x86_64/"
+        baseurl: "https://repo.zabbix.com/zabbix/{{ zabbix_repo_version }}/release/rhel/{{ ansible_distribution_major_version }}/x86_64/"
         gpgcheck: yes
         gpgkey: "https://repo.zabbix.com/zabbix-official-repo.key"
         enabled: yes
@@ -59,7 +59,7 @@
 
     - name: Add Zabbix repository (Debian-based)
       ansible.builtin.apt_repository:
-        repo: "deb [signed-by=/usr/share/keyrings/zabbix-official.gpg] https://repo.zabbix.com/zabbix/{{ zabbix_repo_version }}/ubuntu {{ zabbix_repo_codename }} main"
+        repo: "deb [signed-by=/usr/share/keyrings/zabbix-official.gpg] https://repo.zabbix.com/zabbix/{{ zabbix_repo_version }}/release/ubuntu {{ zabbix_repo_codename }} main"
         state: present
       when: pkg_mgr == "apt"
 
