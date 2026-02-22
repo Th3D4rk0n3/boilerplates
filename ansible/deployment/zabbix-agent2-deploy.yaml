@@ -7,7 +7,31 @@
   vars:
     zabbix_repo_version: "7.4"
 
-  pre_tasks:
+  tasks:
+    # ---------------------- Fail if variable missing ----------------------
+    - name: Fail if zabbix_server_ip is not defined
+      ansible.builtin.fail:
+        msg: "zabbix_server_ip variable must be defined (via Semaphore, inventory, or -e)."
+      when: zabbix_server_ip is not defined
+
+    # ---------------------- Detect package manager ----------------------
+    - name: Detect package manager
+      ansible.builtin.set_fact:
+        pkg_mgr: "{{ ansible_pkg_mgr }}"
+
+    # ---------------------- Ubuntu fix: remove old Zabbix sources ----------------------
+    - name: Remove all old Zabbix sources (Ubuntu)
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/apt/sources.list.d/zabbix.list
+        - /etc/apt/sources.list.d/zabbix.list.save
+        - /etc/apt/sources.list.d/zabbix.list.distUpgrade
+      ignore_errors: yes
+      when: ansible_distribution == "Ubuntu"
+
+    # ---------------------- Ensure apt dependencies ----------------------
     - name: Ensure apt dependencies (Debian/Ubuntu)
       ansible.builtin.apt:
         name:
@@ -17,17 +41,7 @@
           - curl
         state: present
         update_cache: yes
-      when: ansible_pkg_mgr == "apt"
-
-  tasks:
-    - name: Fail if zabbix_server_ip is not defined
-      ansible.builtin.fail:
-        msg: "zabbix_server_ip variable must be defined (via Semaphore, inventory, or -e)."
-      when: zabbix_server_ip is not defined
-
-    - name: Detect package manager
-      ansible.builtin.set_fact:
-        pkg_mgr: "{{ ansible_pkg_mgr }}"
+      when: pkg_mgr == "apt"
 
     # ---------------------- RHEL / Rocky / AlmaLinux ----------------------
     - name: Add Zabbix repository (RHEL-based)
@@ -41,12 +55,6 @@
       when: pkg_mgr in ["yum", "dnf"]
 
     # ---------------------- Ubuntu via .deb ----------------------
-    - name: Remove old Zabbix repo (Ubuntu)
-      ansible.builtin.file:
-        path: /etc/apt/sources.list.d/zabbix.list
-        state: absent
-      when: ansible_distribution == "Ubuntu"
-
     - name: Download Zabbix release package for Ubuntu
       ansible.builtin.get_url:
         url: >-
