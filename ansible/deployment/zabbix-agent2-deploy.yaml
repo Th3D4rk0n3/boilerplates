@@ -43,7 +43,8 @@
     # ---------------------- Ubuntu via .deb ----------------------
     - name: Download Zabbix release package for Ubuntu
       ansible.builtin.get_url:
-        url: "https://repo.zabbix.com/zabbix/{{ zabbix_repo_version }}/release/ubuntu/pool/main/z/zabbix-release/zabbix-release_latest_{{ zabbix_repo_version }}+ubuntu{{ ansible_distribution_version.replace('.', '') }}_all.deb"
+        url: >-
+          https://repo.zabbix.com/zabbix/{{ zabbix_repo_version }}/release/ubuntu/pool/main/z/zabbix-release/zabbix-release_latest_{{ zabbix_repo_version }}+ubuntu{{ ansible_distribution_version }}_all.deb
         dest: "/tmp/zabbix-release_latest_{{ zabbix_repo_version }}.deb"
       when: ansible_distribution == "Ubuntu"
 
