@@ -41,6 +41,12 @@
       when: pkg_mgr in ["yum", "dnf"]
 
     # ---------------------- Ubuntu via .deb ----------------------
+    - name: Remove old Zabbix repo (Ubuntu)
+      ansible.builtin.file:
+        path: /etc/apt/sources.list.d/zabbix.list
+        state: absent
+      when: ansible_distribution == "Ubuntu"
+
     - name: Download Zabbix release package for Ubuntu
       ansible.builtin.get_url:
         url: >-
