@@ -1,10 +1,11 @@
+---
 - name: Install and configure Zabbix Agent2
   hosts: all
   become: yes
   gather_facts: yes
 
   vars:
-    zabbix_repo_version: "7.4"
+    zabbix_repo_version: "8.0"  # or 6.4 / 7.4 if you prefer
 
   pre_tasks:
     - name: Ensure required tools for apt are installed (Debian/Ubuntu)
@@ -20,13 +21,14 @@
   tasks:
     - name: Fail if zabbix_server_ip is not defined
       ansible.builtin.fail:
-        msg: "zabbix_server_ip variable must be defined (e.g., via Semaphore, inventory, or -e)"
+        msg: "zabbix_server_ip variable must be defined (via Semaphore, inventory, or -e)."
       when: zabbix_server_ip is not defined
 
-    - name: Determine package manager
+    - name: Detect package manager
       ansible.builtin.set_fact:
         pkg_mgr: "{{ ansible_pkg_mgr }}"
 
+    # ---------------------- RHEL / Rocky / Alma ----------------------
     - name: Add Zabbix repository (RHEL-based)
       ansible.builtin.yum_repository:
         name: zabbix
@@ -37,6 +39,17 @@
         enabled: yes
       when: pkg_mgr in ["yum", "dnf"]
 
+    # ---------------------- Debian / Ubuntu --------------------------
+    - name: Normalize Ubuntu codename for Zabbix repo
+      ansible.builtin.set_fact:
+        zabbix_repo_codename: >-
+          {% if ansible_distribution_release in ['noble', 'plucky'] %}
+          jammy
+          {% else %}
+          {{ ansible_distribution_release }}
+          {% endif %}
+      when: pkg_mgr == "apt"
+
     - name: Add Zabbix GPG key for Debian/Ubuntu
       ansible.builtin.get_url:
         url: "https://repo.zabbix.com/zabbix-official-repo.key"
@@ -46,7 +59,7 @@
 
     - name: Add Zabbix repository (Debian-based)
       ansible.builtin.apt_repository:
-        repo: "deb [signed-by=/usr/share/keyrings/zabbix-official.gpg] https://repo.zabbix.com/zabbix/{{ zabbix_repo_version }}/{{ ansible_distribution | lower }} {{ ansible_distribution_release }} main"
+        repo: "deb [signed-by=/usr/share/keyrings/zabbix-official.gpg] https://repo.zabbix.com/zabbix/{{ zabbix_repo_version }}/ubuntu {{ zabbix_repo_codename }} main"
         state: present
       when: pkg_mgr == "apt"
 
@@ -55,6 +68,7 @@
         update_cache: yes
       when: pkg_mgr == "apt"
 
+    # ---------------------- Install Agent ----------------------------
     - name: Check if zabbix-agent2 is installed
       ansible.builtin.shell: "rpm -q zabbix-agent2 || dpkg -l zabbix-agent2"
       register: zabbix_check
@@ -66,6 +80,7 @@
         state: present
       when: zabbix_check.rc != 0
 
+    # ---------------------- Configure Agent --------------------------
     - name: Update Server in zabbix_agent2.conf
       ansible.builtin.lineinfile:
         path: /etc/zabbix/zabbix_agent2.conf
@@ -80,6 +95,7 @@
         line: "ServerActive={{ zabbix_server_ip }}"
         backup: yes
 
+    # ---------------------- Enable Service ---------------------------
     - name: Enable and start zabbix-agent2 service
       ansible.builtin.service:
         name: zabbix-agent2
