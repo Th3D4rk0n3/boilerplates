@@ -45,8 +45,17 @@
       ansible.builtin.set_fact:
         zabbix_repo_os: "{{ 'debian' if ansible_distribution == 'Debian' else 'ubuntu' }}"
         zabbix_repo_codename: >-
-          {% if ansible_distribution == 'Ubuntu' and ansible_distribution_release in ['noble', 'plucky'] %}
-            jammy
+          {% if ansible_distribution == 'Ubuntu' %}
+            {% set v = ansible_distribution_version.split('.') %}
+            {% if v[0]|int == 20 %}
+              focal
+            {% elif v[0]|int == 22 %}
+              jammy
+            {% elif v[0]|int == 24 %}
+              noble
+            {% else %}
+              {{ ansible_distribution_release | lower }}
+            {% endif %}
           {% else %}
             {{ ansible_distribution_release | lower }}
           {% endif %}
